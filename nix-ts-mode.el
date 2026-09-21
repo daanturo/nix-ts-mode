@@ -416,6 +416,39 @@ Return nil if there is no name or if NODE is not a defun node."
      (treesit-node-text
       (treesit-node-child-by-field-name node "attrpath") t))))
 
+(defvar nix-ts-mode--syntax-propertize--indented-string--delimiters-query
+  (treesit-query-compile
+   'nix '((indented_string_expression "''" @beg-delim "''" @end-delim))))
+(defun nix-ts-mode--syntax-propertize (beg end)
+  "Propertize multi-line strings (''...'') between BEG and END.
+Consequence(s): `forward-sexp'/`forward-sexp-default-function' move over
+them correctly, `prog--text-at-point-p' returns non-nil inside.
+
+Example: |''...''  (`forward-sexp')-> ''...''| ."
+  (save-excursion
+    (let* ((nodes-list
+            ;; return a list of (list of 2 nodes: starting "''" node and
+            ;; ending "''" node)
+            (treesit-query-capture
+             (treesit-buffer-root-node 'nix)
+             nix-ts-mode--syntax-propertize--indented-string--delimiters-query
+             beg end ':node-only ':grouped)))
+      (dolist (nodes nodes-list)
+        (pcase-let* ((`(,beg-delim ,end-delim) nodes)
+                     ;; Mark first of starting "''" and last of ending "''" as
+                     ;; string delimiters, so that the whole string is treated
+                     ;; as a single sexp.  Note that `treesit-node-end' is
+                     ;; exclusive.  Alternative: mark last of starting "''" and
+                     ;; first of ending "''", but
+                     ;; `forward-sexp-default-function' will only treat inner
+                     ;; "'" as a whole string: |''...''  -> ''...'|'.
+                     (beg-pos (treesit-node-start beg-delim))
+                     (end-pos (- (treesit-node-end end-delim) 1)))
+          (put-text-property
+           beg-pos (+ beg-pos 1) 'syntax-table (string-to-syntax "|"))
+          (put-text-property
+           end-pos (+ end-pos 1) 'syntax-table (string-to-syntax "|")))))))
+
 ;;;###autoload
 (define-derived-mode nix-ts-mode prog-mode "Nix"
   "Major mode for editing Nix expressions, powered by treesitter.
@@ -434,6 +467,12 @@ Return nil if there is no name or if NODE is not a defun node."
                   (string path uri)
                   (number operator definition function-call keyword)
                   (parameter property variable bracket delimiter ellipses punctuation paren-base parameter-atpattern error)))
+
+    (setq-local syntax-propertize-function #'nix-ts-mode--syntax-propertize)
+    ;; not set `forward-sexp-function' to `treesit-forward-sexp' for now,
+    ;; because the latter's behaviour isn't really predictable (it goes over a
+    ;; whole parser-dependant sub tree such as a statement instead of by an
+    ;; obvious symbol/list/string/scalar/...)
 
     ;; Comments
     (setq-local comment-start "# ")
