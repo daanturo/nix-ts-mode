@@ -427,12 +427,16 @@ them correctly, `prog--text-at-point-p' returns non-nil inside.
 Example: |''...''  (`forward-sexp')-> ''...''| ."
   (save-excursion
     (let* ((nodes-list
-            ;; return a list of (list of 2 nodes: starting "''" node and
-            ;; ending "''" node)
-            (treesit-query-capture
-             (treesit-buffer-root-node 'nix)
-             nix-ts-mode--syntax-propertize--indented-string--delimiters-query
-             beg end ':node-only ':grouped)))
+            ;; Return a list of (list of 2 nodes: starting "''" node and ending
+            ;; "''" node).  TODO: replace manual `seq-partition' with
+            ;; `treesit-query-capture''s native GROUP argument when support for
+            ;; Emacs 30 is dropped.
+            (seq-partition
+             (treesit-query-capture
+              (treesit-buffer-root-node 'nix)
+              nix-ts-mode--syntax-propertize--indented-string--delimiters-query
+              beg end ':node-only)
+             2)))
       (dolist (nodes nodes-list)
         (pcase-let* ((`(,beg-delim ,end-delim) nodes)
                      ;; Mark first of starting "''" and last of ending "''" as
@@ -469,10 +473,6 @@ Example: |''...''  (`forward-sexp')-> ''...''| ."
                   (parameter property variable bracket delimiter ellipses punctuation paren-base parameter-atpattern error)))
 
     (setq-local syntax-propertize-function #'nix-ts-mode--syntax-propertize)
-    ;; not set `forward-sexp-function' to `treesit-forward-sexp' for now,
-    ;; because the latter's behaviour isn't really predictable (it goes over a
-    ;; whole parser-dependant sub tree such as a statement instead of by an
-    ;; obvious symbol/list/string/scalar/...)
 
     ;; Comments
     (setq-local comment-start "# ")

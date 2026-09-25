@@ -300,7 +300,9 @@ foo ${foo.bar} bar
 bar''"))
    (syntax-propertize (point-max))
    (goto-char (point-min))
-   (forward-sexp-default-function 1)
+   ;; try with `forward-sexp-default-function'/equivalence on older Emacs
+   (dlet ((forward-sexp-function nil))
+    (forward-sexp 1))
    (should (eobp))))
 
 (provide 'nix-ts-mode-font-lock-test)
